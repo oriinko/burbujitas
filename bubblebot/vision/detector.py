@@ -86,3 +86,4 @@ def _infer_shooter(image: np.ndarray, launcher: dict[str, int] | None, centers: 
         return _color_name(rgb, centers)
     return sample(0, 0), sample(0, -int(radius * 2.3))
 
+
