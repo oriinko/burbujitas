@@ -25,6 +25,7 @@ class DetectionState:
     launcher: dict[str, int] | None = None
     calibration: dict[str, float] = field(default_factory=dict)
     confidence: dict[str, float] = field(default_factory=dict)
+    rejected_candidates: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         value = self.__dict__.copy()
@@ -42,3 +43,5 @@ class DetectionState:
             cells = " ".join(f"{b.color[-1]:>2}" for b in sorted(rows[row], key=lambda b: b.col))
             lines.append(f"R{row:02d}  {'  ' if row % 2 else ''}{cells}")
         return "\n".join(lines)
+
+

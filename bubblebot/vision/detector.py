@@ -1,58 +1,75 @@
 from __future__ import annotations
-import cv2
+
 import numpy as np
+
+from .candidates import detect_circle_candidates
+from .colors import cluster_colors, extract_color_feature
+from .isolation import isolate_board_candidates
 from .state import Bubble, DetectionState
-def _color_name(rgb, centers): return f"COLOR_{int(np.argmin([np.linalg.norm(rgb.astype(float)-c) for c in centers]))}"
-def _rows(ys,tol):
- rows=[]
- for y in sorted(ys):
-  if not rows or y-np.median(rows[-1])>tol: rows.append([y])
-  else: rows[-1].append(y)
- return rows
-def _fit(cs,radius):
- rows=_rows([c[1] for c in cs],max(3.,radius*.65)); ry=np.array([np.median(r) for r in rows]); sy=float(np.median(np.diff(ry))) if len(ry)>1 else radius*1.73; gaps=[]
- for row in rows:
-  xs=sorted(c[0] for c in cs if min(abs(c[1]-y) for y in row)<=radius*.65); gaps += [d for d in np.diff(xs) if d>radius*1.2]
- sx=float(np.median(gaps)) if gaps else radius*2; sx=max(radius*1.5,min(radius*2.4,sx)); sy=max(radius*1.3,min(radius*2.,sy)); best=None
- for parity in (0,1):
-  for ox in np.linspace(min(c[0] for c in cs)-sx,min(c[0] for c in cs)+sx,41):
-   for oy in (ry[0]-sy,ry[0],ry[0]+sy):
-    ass=[]; res=[]
-    for x,y,*_ in cs:
-     r=round((y-oy)/sy); off=sx/2 if (r+parity)%2 else 0; col=round((x-ox-off)/sx); ass.append((int(r),int(col))); res.append(abs(y-(oy+r*sy))+abs(x-(ox+off+col*sx)))
-    score=float(np.median(res))
-    if best is None or score<best[0]: best=(score,ox,oy,parity,ass)
- score,ox,oy,parity,ass=best; base=min((c for c in ass if c[0]==0),key=lambda z:z[1])[1] if any(c[0]==0 for c in ass) else min(c[1] for c in ass); ass=[(r,col-base) for r,col in ass]; conf=max(0.,min(1.,1-score/max(radius*2,1)))
- return [Bubble(rc[0],rc[1],c[0],c[1],c[2],"",conf) for c,rc in zip(cs,ass)],{"radius":radius,"spacing_x":sx,"spacing_y":sy,"row_offset":sx/2,"origin_x":ox,"origin_y":oy,"parity":float(parity)},conf
-def _find_launcher(image,board,radius):
- h,w=image.shape[:2]; x0=max(0,int(board["left"]-radius*2)); x1=min(w,int(board["right"]+radius*2)); y0=min(h,int(board["bottom"]+radius*1.5));
- if y0>=h or x1<=x0:return None,0.
- hsv=cv2.cvtColor(image[y0:,x0:x1],cv2.COLOR_BGR2HSV); mask=cv2.inRange(hsv,np.array([0,55,45]),np.array([179,255,255])); contours,_=cv2.findContours(mask,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE); objs=[]
- for q in contours:
-  (x,y),r=cv2.minEnclosingCircle(q); area=cv2.contourArea(q)
-  if radius*.65<=r<=radius*1.5 and area/max(np.pi*r*r,1)>=.4: objs.append((x+x0,y+y0,r))
- if not objs:return None,0.
- x,y,r=max(objs,key=lambda p:p[1]); return {"x":int(round(x)),"y":int(round(y))},min(1.,.5+.5*min(1.,r/radius))
-def _sample(image,x,y,r,centers):
- h,w=image.shape[:2]; x0,x1=max(0,int(x-r*.55)),min(w,int(x+r*.55)); y0,y1=max(0,int(y-r*.55)),min(h,int(y+r*.55)); p=image[y0:y1,x0:x1]
- if p.size==0 or float(np.mean(cv2.cvtColor(p,cv2.COLOR_BGR2HSV)[...,1]))<35:return None
- return _color_name(cv2.cvtColor(np.uint8([[p.reshape(-1,3).mean(axis=0)]]),cv2.COLOR_BGR2RGB)[0,0],centers)
-def detect_image(image):
- h,w=image.shape[:2]; hsv=cv2.cvtColor(image,cv2.COLOR_BGR2HSV); mask=cv2.inRange(hsv,np.array([0,55,45]),np.array([179,255,255])); mask=cv2.morphologyEx(mask,cv2.MORPH_OPEN,np.ones((3,3),np.uint8)); contours,_=cv2.findContours(mask,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE); cs=[]
- for q in contours:
-  area=cv2.contourArea(q); (x,y),r=cv2.minEnclosingCircle(q); circ=area/max(np.pi*r*r,1.)
-  if area>=120 and 8<=r<=min(w,h)*.08 and circ>=.45:
-   px,py=round(x),round(y); p=image[max(0,py-2):py+3,max(0,px-2):px+3]; cs.append((px,py,round(r),p.reshape(-1,3).mean(axis=0)[::-1]))
- if not cs:return DetectionState((w,h),{},confidence={"bubbles":0.,"launcher":0.})
- radius=float(np.median([c[2] for c in cs])); cs=[c for c in cs if c[1] <= float(np.percentile([q[1] for q in cs],75))]; cs=cs if len(cs)>=3 else cs; data=np.float32([c[3] for c in cs]); k=1
- if k>1: _,_,centers=cv2.kmeans(data,k,None,(cv2.TERM_CRITERIA_EPS+cv2.TERM_CRITERIA_MAX_ITER,30,1.),3,cv2.KMEANS_PP_CENTERS); centers=[c for c in centers]
- else: centers=[data.mean(axis=0)]
- bubbles,cal,grid=_fit(cs,radius)
- for b,c in zip(bubbles,cs): b.color=_color_name(c[3],centers)
- board={"left":int(min(c[0] for c in cs)-radius),"right":int(max(c[0] for c in cs)+radius),"top":int(min(c[1] for c in cs)-radius),"bottom":int(max(c[1] for c in cs)+radius),"radius":radius}; launcher,lc=_find_launcher(image,board,radius); current=_sample(image,launcher["x"],launcher["y"],radius,centers) if launcher else None; nxt=_sample(image,launcher["x"],launcher["y"]-radius*2.25,radius*.8,centers) if launcher else None
- return DetectionState((w,h),board,bubbles,current,nxt,launcher,cal,{"bubbles":min(1.,len(bubbles)/20),"grid":grid,"board":grid,"launcher":lc,"shooter":float(current is not None)*.7+float(nxt is not None)*.3})
 
 
+def detect_image(image: np.ndarray) -> DetectionState:
+    """Compose candidate detection, board isolation, geometry, and color classification."""
+    height, width = image.shape[:2]
+    detected = detect_circle_candidates(image)
+    isolated = isolate_board_candidates(detected.candidates)
+    occupied_rows = int(isolated.confidence.get("occupied_rows", 0.0))
+    if len(isolated.accepted) < 4 or occupied_rows < 2:
+        rejected = [
+            {"id": item.candidate_id, "x": item.x, "y": item.y, "radius": item.radius,
+             "reason": isolated.rejection_reason.get(item.candidate_id, "no_convincing_board")}
+            for item in detected.candidates
+        ]
+        return DetectionState(
+            (width, height), {}, rejected_candidates=rejected,
+            confidence={"candidate_detection": detected.confidence, "board_isolation": 0.0,
+                        "grid": 0.0, "color_classification": 0.0, "overall_board_state": 0.0, "launcher": 0.0, "shooter": 0.0},
+        )
+
+    features = [extract_color_feature(image, item) for item in isolated.accepted]
+    colors = cluster_colors(features)
+    bubbles = []
+    for item in isolated.accepted:
+        cell = isolated.cell_by_candidate[item.candidate_id]
+        confidence = min(
+            float(isolated.confidence.get("overall", 0.0)),
+            float(colors.confidence[item.candidate_id]),
+        )
+        bubbles.append(Bubble(cell[0], cell[1], round(item.x), round(item.y), round(item.radius), colors.assignment[item.candidate_id], confidence))
+    bubbles.sort(key=lambda bubble: (bubble.row, bubble.col))
+
+    radius = float(np.median([item.radius for item in isolated.accepted]))
+    board = {
+        "left": int(np.floor(min(item.x - item.radius for item in isolated.accepted))),
+        "right": int(np.ceil(max(item.x + item.radius for item in isolated.accepted))),
+        "top": int(np.floor(min(item.y - item.radius for item in isolated.accepted))),
+        "bottom": int(np.ceil(max(item.y + item.radius for item in isolated.accepted))),
+        "radius": radius,
+        "rows": len({bubble.row for bubble in bubbles}),
+        "colors": colors.cluster_count,
+    }
+    rejected = [
+        {"id": item.candidate_id, "x": item.x, "y": item.y, "radius": item.radius,
+         "reason": isolated.rejection_reason.get(item.candidate_id, "not_board")}
+        for item in isolated.rejected
+    ]
+    grid_confidence = float(isolated.confidence.get("overall", 0.0))
+    overall = min(detected.confidence, grid_confidence, colors.overall_confidence)
+    calibration = dict(isolated.calibration)
+    calibration.update({"row_offset_direction": "canonical odd-r", "board_rows": float(board["rows"])})
+    confidence = {
+        "candidate_detection": detected.confidence,
+        "board_isolation": grid_confidence,
+        "grid": grid_confidence,
+        "color_classification": colors.overall_confidence,
+        "overall_board_state": overall,
+        "launcher": 0.0,
+        "shooter": 0.0,
+    }
+    return DetectionState(
+        (width, height), board, bubbles, None, None, None,
+        calibration, confidence, rejected_candidates=rejected,
+    )
 
 
 
