@@ -15,7 +15,7 @@ def _fit(cs,radius):
   xs=sorted(c[0] for c in cs if min(abs(c[1]-y) for y in row)<=radius*.65); gaps += [d for d in np.diff(xs) if d>radius*1.2]
  sx=float(np.median(gaps)) if gaps else radius*2; sx=max(radius*1.5,min(radius*2.4,sx)); sy=max(radius*1.3,min(radius*2.,sy)); best=None
  for parity in (0,1):
-  for ox in np.linspace(min(c[0] for c in board_cs)-sx,min(c[0] for c in board_cs)+sx,41):
+  for ox in np.linspace(min(c[0] for c in cs)-sx,min(c[0] for c in cs)+sx,41):
    for oy in (ry[0]-sy,ry[0],ry[0]+sy):
     ass=[]; res=[]
     for x,y,*_ in cs:
@@ -44,13 +44,14 @@ def detect_image(image):
   if area>=120 and 8<=r<=min(w,h)*.08 and circ>=.45:
    px,py=round(x),round(y); p=image[max(0,py-2):py+3,max(0,px-2):px+3]; cs.append((px,py,round(r),p.reshape(-1,3).mean(axis=0)[::-1]))
  if not cs:return DetectionState((w,h),{},confidence={"bubbles":0.,"launcher":0.})
- radius=float(np.median([c[2] for c in cs])); board_cs=[c for c in cs if c[1] <= float(np.percentile([q[1] for q in cs],75))]; board_cs=board_cs if len(board_cs)>=3 else cs; data=np.float32([c[3] for c in board_cs]); k=1
+ radius=float(np.median([c[2] for c in cs])); cs=[c for c in cs if c[1] <= float(np.percentile([q[1] for q in cs],75))]; cs=cs if len(cs)>=3 else cs; data=np.float32([c[3] for c in cs]); k=1
  if k>1: _,_,centers=cv2.kmeans(data,k,None,(cv2.TERM_CRITERIA_EPS+cv2.TERM_CRITERIA_MAX_ITER,30,1.),3,cv2.KMEANS_PP_CENTERS); centers=[c for c in centers]
  else: centers=[data.mean(axis=0)]
- bubbles,cal,grid=_fit(board_cs,radius)
- for b,c in zip(bubbles,board_cs): b.color=_color_name(c[3],centers)
- board={"left":int(min(c[0] for c in board_cs)-radius),"right":int(max(c[0] for c in board_cs)+radius),"top":int(min(c[1] for c in board_cs)-radius),"bottom":int(max(c[1] for c in board_cs)+radius),"radius":radius}; launcher,lc=_find_launcher(image,board,radius); current=_sample(image,launcher["x"],launcher["y"],radius,centers) if launcher else None; nxt=_sample(image,launcher["x"],launcher["y"]-radius*2.25,radius*.8,centers) if launcher else None
+ bubbles,cal,grid=_fit(cs,radius)
+ for b,c in zip(bubbles,cs): b.color=_color_name(c[3],centers)
+ board={"left":int(min(c[0] for c in cs)-radius),"right":int(max(c[0] for c in cs)+radius),"top":int(min(c[1] for c in cs)-radius),"bottom":int(max(c[1] for c in cs)+radius),"radius":radius}; launcher,lc=_find_launcher(image,board,radius); current=_sample(image,launcher["x"],launcher["y"],radius,centers) if launcher else None; nxt=_sample(image,launcher["x"],launcher["y"]-radius*2.25,radius*.8,centers) if launcher else None
  return DetectionState((w,h),board,bubbles,current,nxt,launcher,cal,{"bubbles":min(1.,len(bubbles)/20),"grid":grid,"board":grid,"launcher":lc,"shooter":float(current is not None)*.7+float(nxt is not None)*.3})
+
 
 
 
