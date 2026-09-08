@@ -53,3 +53,4 @@ def detect_image(image):
  return DetectionState((w,h),board,bubbles,current,nxt,launcher,cal,{"bubbles":min(1.,len(bubbles)/20),"grid":grid,"board":grid,"launcher":lc,"shooter":float(current is not None)*.7+float(nxt is not None)*.3})
 
 
+
