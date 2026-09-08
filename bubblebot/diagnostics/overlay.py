@@ -28,3 +28,4 @@ def draw_debug_overlay(image: np.ndarray, state: DetectionState) -> np.ndarray:
     cv2.rectangle(output, (5, 5), (min(output.shape[1] - 5, 780), 34), (0, 0, 0), -1)
     cv2.putText(output, summary, (12, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (255, 255, 255), 1, cv2.LINE_AA)
     return output
+
