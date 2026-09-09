@@ -1,0 +1,12 @@
+{
+  "name": "bubblebot-js3-shot-evaluation-spike",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "inspect": "node inspect-helpers.mjs",
+    "probe": "node select-best-shot.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.55.0"
+  }
+}
