@@ -1,0 +1,9 @@
+{
+  "name": "bubblebot-js5-spike",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "run": "node run-bounded.mjs"
+  }
+}
+
