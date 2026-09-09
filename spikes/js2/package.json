@@ -1,0 +1,12 @@
+{
+  "name": "bubblebot-js2-trajectory-spike",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "inspect": "node inspect-orchestrator.mjs",
+    "probe": "node simulate-trajectories.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.55.0"
+  }
+}
