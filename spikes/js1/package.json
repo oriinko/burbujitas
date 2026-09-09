@@ -1,0 +1,11 @@
+{
+  "name": "bubblebot-js1-runtime-spike",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "probe": "node extract-runtime.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.55.0"
+  }
+}
