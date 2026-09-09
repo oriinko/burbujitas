@@ -1,0 +1,12 @@
+{
+  "name": "bubblebot-js4-one-shot-spike",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "inspect": "node inspect-shooting-api.mjs",
+    "verify-one-shot": "node verify-one-shot.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.55.0"
+  }
+}
