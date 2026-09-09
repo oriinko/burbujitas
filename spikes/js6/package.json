@@ -1,0 +1,9 @@
+{
+  "name": "bubblebot-js6-spike",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "run": "node run-full-round.mjs"
+  }
+}
+
